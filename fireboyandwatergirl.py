@@ -11,25 +11,26 @@ from PIL import Image
 import random, time
 
 class Character:
-    def __init__(self, name, nature):
+    def __init__(self, name, nature, initx, inity):
         #set property
         self.name = name
         self.nature = nature
-        self.facedirection = 'left'
+        self.facedirection = 'middle'
         
         #condition on current direction
-        left_filepath = f'TP/pics/{self.name}.gif'
+        #left_filepath = f'TP/pics/{self.name}_right.gif'
         right_filepath = f'TP/pics/{self.name}_right.gif'
-        middle_filepath = f'TP/pics/{self.name}_middle.gif'
+        middle_filepath = f'TP/pics/{self.name}_middle.png'
         
         ### Adapted from mdtaylor: KirbleBird starter demo v.1.1 ###
         #Load the left gif
         self.leftspriteList = []
-        myGif = Image.open(left_filepath)
+        myGif = Image.open(right_filepath)
         for frame in range(myGif.n_frames):  #For every frame index...
             #Seek to the frame, convert it, add it to our sprite list
             myGif.seek(frame)
-            fr = myGif.resize((myGif.size[0]//2, myGif.size[1]//2))
+            fr = myGif.resize((myGif.size[0]//5, myGif.size[1]//5))
+            fr = fr.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
             fr = CMUImage(fr)
             self.leftspriteList.append(fr)
         ##Fix for broken transparency on frame 0
@@ -37,41 +38,65 @@ class Character:
         
         #Load the right gif
         self.rightspriteList = []
-        myGif = Image.open(left_filepath)
+        myGif = Image.open(right_filepath)
         for frame in range(myGif.n_frames):  #For every frame index...
             #Seek to the frame, convert it, add it to our sprite list
             myGif.seek(frame)
-            fr = myGif.resize((myGif.size[0]//2, myGif.size[1]//2))
-            fr = fr.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            fr = myGif.resize((myGif.size[0]//5, myGif.size[1]//5))
             fr = CMUImage(fr)
             self.rightspriteList.append(fr)
         ##Fix for broken transparency on frame 0
         self.rightspriteList.pop(0)
+        
+        #load the middle png
+        self.middle = Image.open(middle_filepath)
+        self.middle = self.middle.resize((myGif.size[1]//8,myGif.size[1]//5))
+        self.middle = CMUImage(self.middle)
         
         #Set sprite counters
         self.stepCounter = 0
         self.spriteCounter = 0
 
         #Set initial position, velocity, size
-        self.x = 100
-        self.y = 100
+        self.x = initx
+        self.y = inity
         self.dx = 0
         self.dy = 0
         self.ddy = 0.5
         self.isjumping = False
-        self.width = myGif.size[0]//2
-        self.height  = myGif.size[1]//2
+        self.onslop = 'no'
+        self.width = myGif.size[0]//5
+        self.height  = myGif.size[1]//5
         
     ### Adapted from mdtaylor: KirbleBird starter demo v.1.1 ###  
     def draw(self):
-        #Draw left kirb sprite
+        #Draw middle sprite
+        if self.facedirection == 'middle':
+            drawImage(self.middle, 
+                    self.x, self.y, align = 'center')
+        #Draw left sprite
         if self.facedirection == 'left':
-            drawImage(self.leftspriteList[self.spriteCounter], 
-                    self.x, self.y, align = 'center')
-        #Draw right kirb sprite
+            if self.onslop == 'leftslop':
+                drawImage(self.leftspriteList[self.spriteCounter], 
+                        self.x, self.y, align = 'center',rotateAngle=45)
+            elif self.onslop == 'rightslop':
+                drawImage(self.leftspriteList[self.spriteCounter], 
+                        self.x, self.y, align = 'center',rotateAngle=-45)
+            else:
+                drawImage(self.leftspriteList[self.spriteCounter], 
+                        self.x, self.y, align = 'center')
+        #Draw right sprite
         if self.facedirection == 'right':
-            drawImage(self.rightspriteList[self.spriteCounter], 
-                    self.x, self.y, align = 'center')
+            if self.onslop == 'leftslop':
+                drawImage(self.rightspriteList[self.spriteCounter], 
+                        self.x, self.y, align = 'center',rotateAngle=45)
+            elif self.onslop == 'rightslop':
+                drawImage(self.rightspriteList[self.spriteCounter], 
+                        self.x, self.y, align = 'center',rotateAngle=-45)
+            else:
+                drawImage(self.rightspriteList[self.spriteCounter], 
+                        self.x, self.y, align = 'center')
+        
             
     ### Adapted from mdtaylor: KirbleBird starter demo v.1.1 ###  
     def doStep(self):
@@ -96,48 +121,65 @@ class Terrain:
         self.linedirect = []
         for i in range(0, len(self.linelist)-2,2):
             line = self.linelist[i:i+4]
-            if line[0]==line[2]:
+            if line[1]==line[3]:
                 self.linedirect.append('horizon')
-            elif line[1]==line[3]:
+            elif line[0]==line[2]:
                 self.linedirect.append('vertical')
-            else:
-                self.linedirect.append('slop')
-        
-
+            elif (line[0]-line[2])*(line[1]-line[3])>0:
+                self.linedirect.append('leftslop')
+            elif (line[0]-line[2])*(line[1]-line[3])<0:
+                self.linedirect.append('rightslop')
+'''
+testslop1 = [30,620, 30,670, 80,670]
+testslop2 = [1120,620, 1070,670, 1120,670]
+terrain5 = Terrain(testslop1)
+terrain6 = Terrain(testslop2)
+terrainList = [terrain5, terrain6]
+for t in terrainList:
+    print(t.linedirect)
+'''
 #-------------------------------------------------------------------
 def onAppStart(app):
     app.stepsPerSecond = 30         #Adjust the onStep frequency
     app.bg = Image.open("TP/pics/bg.jpg")
     app.bg = app.bg.resize((app.width,app.height))
     app.bg = CMUImage(app.bg)
-    app.fireboy = Character('kirb', 'left')
+    app.fireboy = Character('fireboy','fire',300,600)
+    app.watergirl = Character('watergirl','water',400,600)
     loadTerrainPieces(app)
     
 def loadTerrainPieces(app):
     # Seven "standard" pieces (tetrominoes)
     bottomwall = [0,app.height-30, 0,app.height, app.width,app.height, app.width,app.height-30]
-    #bottomwall_dir = []
     leftwall = [0,0, 0,app.height, 30,app.height, 30,0]
-    #leftwall_dir = []
     rightwall = [app.width-30,0, app.width-30,app.height, app.width,app.height, app.width,0]
-    #rightwall_dir = []
     topwall = [0,0, 0,30, app.width,30, app.width,0]
-    #topwall_dir = []
-    #testslop1 = []
+    testslop1 = [30,570, 30,670, 130,670]
+    testslop2 = [1120,570, 1020,670, 1120,670]
     terrain1 = Terrain(bottomwall)
     terrain2 = Terrain(leftwall)
     terrain3 = Terrain(rightwall)
     terrain4 = Terrain(topwall)
-    app.terrainList = [ terrain1, terrain2, terrain3, terrain4]
+    terrain5 = Terrain(testslop1)
+    terrain6 = Terrain(testslop2)
+    app.terrainList = [ terrain1, terrain2, terrain3, terrain4,
+                        terrain5, terrain6]
 
 def onKeyHold(app, keys):
     #hold key to control horizontal move
     if 'd' in keys:
-        app.fireboy.dx = 5
+        app.fireboy.dx = 3
         app.fireboy.facedirection = 'right'
     elif 'a' in keys:
-        app.fireboy.dx = -5
+        app.fireboy.dx = -3
         app.fireboy.facedirection = 'left'
+        
+    elif 'right' in keys:
+        app.watergirl.dx = 3
+        app.watergirl.facedirection = 'right'
+    elif 'left' in keys:
+        app.watergirl.dx = -3
+        app.watergirl.facedirection = 'left'
 
 def onKeyRelease(app, keys):
     #app.fireboy.facedirection = 'middle'
@@ -145,61 +187,119 @@ def onKeyRelease(app, keys):
         app.fireboy.dx = 0
     if 'a' in keys:
         app.fireboy.dx = 0
+    if 'right' in keys:
+        app.watergirl.dx = 0
+    if 'left' in keys:
+        app.watergirl.dx = 0
+
+#compute the vector of three points
+def lineVector(x1,y1,x2,y2,x3,y3):
+    return  (x1-x3)*(y2-y3)-(y1-y3)*(x2-x3)
+#print(lineVector(1,3,3,1,1,1))
 
 def collide(linedir, linepoints, character): # should be modified later
     if linedir == 'horizon':
-        #haven't touched and next time will touch
+        start = min(linepoints[0],linepoints[2])
+        end = max(linepoints[0],linepoints[2])
+        #haven't touched and next time will touch -floor
         if (character.y+character.height//2)<=linepoints[1]:
             if (character.y+character.height//2+character.dy)>=linepoints[1]:
-                character.y = linepoints[1]-character.height//2
-                character.dy = 0
-                character.isjumping = False
-                return 'floor'
+                #also x should with this range
+                if character.x <= end and character.x >= start:
+                    character.y = linepoints[1]-character.height//2
+                    character.dy = 0
+                    character.isjumping = False
+                    return 'floor'
+        #haven't touched and next time will touch -ceil
         if (character.y-character.height//2)>=linepoints[1]:
             if (character.y-character.height//2+character.dy)<=linepoints[1]:
-                character.y = linepoints[1] + character.height//2
-                character.dy = 0
-                return 'ceil'
+                #also x should with this range
+                if character.x <= end and character.x >= start:
+                    character.y = linepoints[1] + character.height//2
+                    character.dy = 0
+                    return 'ceil'
         
     elif linedir == 'vertical':
+        start = min(linepoints[1],linepoints[3])
+        end = max(linepoints[1],linepoints[3])
         leftpos = character.x - character.width//2
         rightpos = character.x + character.width//2
-        #haven't touched and next time will touch
-        print(leftpos,rightpos,linepoints[0])
+        #haven't touched and next time will touch -leftwall
         if leftpos >= linepoints[0]:
             if (leftpos+character.dx) <= linepoints[0]:
-                character.x = linepoints[0] + character.width//2
-                character.dx = 0
-                print('hit left wall')
-                return 'wall'
+                #also y should with this range
+                if character.y <= end and character.y >= start:
+                    character.x = linepoints[0] + character.width//2
+                    character.dx = 0
+                    print('hit left wall')
+                    return 'wall'
+        #haven't touched and next time will touch -rightwall
         if rightpos <= linepoints[0]:
             if (rightpos+character.dx) >= linepoints[0]:
-                character.x = linepoints[0] - character.width//2
-                character.dx = 0
-                print('hit right wall')
-                return 'wall'
+                #also y should with this range
+                if character.y <= end and character.y >= start:
+                    character.x = linepoints[0] - character.width//2
+                    character.dx = 0
+                    print('hit right wall')
+                    return 'wall'
         
-    elif linedir == 'slop':
+    elif linedir == 'leftslop':
+        #(x1,y1).......
+        #....(x,y).....
+        #.......(x2,y2)
         x1 = min(linepoints[0],linepoints[2])
         y1 = min(linepoints[1],linepoints[3])
         x2 = max(linepoints[0],linepoints[2])
         y2 = max(linepoints[1],linepoints[3])
         
-        lowerleft_x = character.x - character.width//2
-        lower_y = character.y + character.height//2
-        lowerright_x = character.x + character.width//2
-        #(x1,y1).......
-        #....(x,y).....
-        #.......(x2,y2)
-        if lowerleft_x > x1 and lowerleft_x < x2 and lower_y > y1 and lower_y < y2:
-            if (x2-lowerleft_x)==(y2-lower_y) and (lowerleft_x-x1)==(lower_y-y1):
+        lowerleft_x = character.x - character.width//2 #x
+        lower_y = character.y + character.height//2 #y
+        
+        vector = lineVector(x1,y1,x2,y2,lowerleft_x,lower_y)
+        nextvector = lineVector(x1,y1,x2,y2,lowerleft_x+character.dx,lower_y+character.dy)
+        #haven't touched and next time will touch -leftslop 
+        if vector < 0 and nextvector > 0:
+            print('hit left slop')
+            #put x,y on the slop
+            character.dy = character.dx
+            return 'leftslop'
+        #already on the slop
+        if vector == 0:
+            #and within range
+            if lowerleft_x >= x1 and lowerleft_x <= x2 and lower_y >= y1 and lower_y <= y2:
+                print('on left slop')
+                #next step for x is (character.d+character.dx)
+                character.dy = character.dx
                 return 'leftslop'
+            
+    elif linedir == 'rightslop':
         #.......(x2,y1)
         #....(x,y).....
         #(x1,y2).......
-        if lowerright_x < x2 and lowerright_x > x1 and lower_y > y1 and lower_y < y2:
-            if (lowerright_x-x1)==(y2-lower_y) and (x2-lowerright_x)==(lower_y-y1):
-                return 'leftslop'
+        x1 = min(linepoints[0],linepoints[2])
+        y1 = min(linepoints[1],linepoints[3])
+        x2 = max(linepoints[0],linepoints[2])
+        y2 = max(linepoints[1],linepoints[3])
+        lower_y = character.y + character.height//2 #y
+        lowerright_x = character.x + character.width//2 #x
+        
+        vector = lineVector(x1,y2,x2,y1,lowerright_x,lower_y)
+        nextvector = lineVector(x1,y2,x2,y1,lowerright_x+character.dx,lower_y+character.dy)
+        
+        #haven't touched and next time will touch -leftslop 
+        if vector < 0 and nextvector > 0:
+            print('hit right slop')
+            #put x,y on the slop
+            character.dy = -character.dx
+            return 'rightslop'
+        #already on the slop
+        if vector == 0:
+            #and within range
+            if lowerright_x >= x1 and lowerright_x <= x2 and lower_y >= y1 and lower_y <= y2:
+                print('on right slop')
+                #next step for x is (character.d+character.dx)
+                character.dy = -character.dx
+                return 'rightslop'
     return None
 
 def onLine(app, character:Character): 
@@ -216,33 +316,25 @@ def onLine(app, character:Character):
     return status
 
 def updateStatus(app, character:Character):
-    #charcter on ground, stand still
+    
     status = onLine(app, character) #return a set of current status
-    #if 'floor' in status:
-        #character.dy = 0
-        #character.isjumping = False
-        
-    #charcter hit ceilling, lose y speed
-    #if 'ceil' in status:
-        #character.dy = 0
+    #print(f'current status is {status} and current lowerleft is {character.x-character.width//2}, {character.y+character.height//2}')
     
-    #charcter on a slop, slip slowly
+    #charcter on a slop, change drawing angle
     if 'leftslop' in status:
-        character.dx = 1
-        character.dy = 1
-    if  'rightslop' in status:
-        character.dx = -1
-        character.dy = 1
-    
-    #character hit wall
-    #if 'wall' in status:
-    #    character.dx = 0
+        character.onslop = 'leftslop'
+    elif 'rightslop' in status:
+        character.onslop = 'rightslop'
+    else:
+        character.onslop = 'no'
     
 def onStep(app):
     #Update fireboy status
     updateStatus(app, app.fireboy)
+    updateStatus(app, app.watergirl)
     #Update the fireboy
     app.fireboy.doStep()
+    app.watergirl.doStep()
 
    
 def onKeyPress(app, key):
@@ -250,6 +342,9 @@ def onKeyPress(app, key):
     if key == 'w':
         app.fireboy.jump() 
         app.fireboy.isjumping = True
+    if key == 'up':
+        app.watergirl.jump() 
+        app.watergirl.isjumping = True
 
     
 def redrawAll(app):
@@ -258,8 +353,9 @@ def redrawAll(app):
     #draw Terrain
     for terrain in app.terrainList:
         drawPolygon(*terrain.pointlist, fill='saddleBrown',opacity=100)
-        
+    #draw character
     app.fireboy.draw()
+    app.watergirl.draw()
     
 def main():
     runApp(width=1150, height=700)
