@@ -93,12 +93,14 @@ class Character:
             self.dy -= 11
 
 class Terrain:
+
     def __init__(self, pointlist):
         self.pointlist = pointlist
         self.linelist = self.pointlist + [self.pointlist[0]] + [self.pointlist[1]]
         
         #define line direction
         self.linedirect = []
+        range(-2, len(), 2)
         for i in range(0, len(self.linelist)-2,2):
             line = self.linelist[i:i+4]
             if line[1]==line[3]:
@@ -109,15 +111,7 @@ class Terrain:
                 self.linedirect.append('leftslop')
             elif (line[0]-line[2])*(line[1]-line[3])<0:
                 self.linedirect.append('rightslop')
-'''
-testslop1 = [30,620, 30,670, 80,670]
-testslop2 = [1120,620, 1070,670, 1120,670]
-terrain5 = Terrain(testslop1)
-terrain6 = Terrain(testslop2)
-terrainList = [terrain5, terrain6]
-for t in terrainList:
-    print(t.linedirect)
-'''
+
 #-------------------------------------------------------------------
 def onAppStart(app):
     app.stepsPerSecond = 30         #Adjust the onStep frequency
@@ -136,7 +130,7 @@ def loadTerrainPieces(app):
     topwall = Terrain( [0,0, 0,30, app.width,30, app.width,0])
     testslop1 = Terrain( [30,570, 30,670, 130,670])
     testslop2 = Terrain([1120,570, 1020,670, 1120,670])
-    #add more terrins hadr code for three layer
+    #add more terrins, hard code for three layer
     terrain1 = Terrain([0,525, 0,550, 600,550, 650,500, 800,500, 800,475, 650,475, 600,525])
     terrain2 = Terrain([900,525, 1150,525, 1150,500, 925,500])
     #terrain3 = Terrain([])
@@ -236,9 +230,9 @@ def collide(linedir, linepoints, character): # should be modified later
         x2 = max(linepoints[0],linepoints[2])
         y2 = max(linepoints[1],linepoints[3])
         
-        lowerleft_x = character.x - character.width//2 #x
+        lowerleft_x = character.x #x
         lower_y = character.y + character.height//2 #y
-        lowerright_x = character.x + character.width//2 #x
+        lowerright_x = character.x #x
         
         if linedir == 'leftslop':
             vector = lineVector(x1,y1,x2,y2,lowerleft_x,lower_y)
@@ -258,6 +252,7 @@ def collide(linedir, linepoints, character): # should be modified later
                     #next step for x is (character.d+character.dx)
                     character.dy = character.dx
                     return 'leftslop'
+
             
         elif linedir == 'rightslop':
             #.......(x2,y1)
