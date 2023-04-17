@@ -12,16 +12,23 @@ import random, time
 import math
 
 class Character:
-    def __init__(self, name, nature, initx, inity, widthresize, heightresize, midwidth, midheight, adjust):
-        #set property
+    def __init__(self, name, property, initx, inity, widthresize, heightresize, midwidth, midheight, adjust):
+        #set initial property, position, velocity
         self.name = name
-        self.nature = nature
+        self.property = property
         self.facedirection = 'middle'
         self.midwidth = midwidth
         self.midheight = midheight
         self.heightresize = heightresize
         self.widthresize = widthresize
         self.ajust = adjust
+        self.x = initx
+        self.y = inity
+        self.dx = 0
+        self.dy = 0
+        self.ddy = 0
+        self._status = "in air"
+        self.die = False
         
         #condition on current direction
         right_filepath = f'TP/pics/{self.name}_right.gif'
@@ -54,16 +61,9 @@ class Character:
         self.stepCounter = 0
         self.spriteCounter = 0
 
-        #Set initial position, velocity, size
-        self.x = initx
-        self.y = inity
-        self.dx = 0
-        self.dy = 0
-        self.ddy = 0
-        self._status = "in air"
+        #Set size
         self.width = myGif.size[0]//self.widthresize 
         self.height  = myGif.size[1]//self.heightresize - (myGif.size[1]//self.ajust)
-        self.rotation = 0
 
     @property
     def status(self):
@@ -151,7 +151,7 @@ class Character:
 
     def jump(self):
         if self.status != "in air":
-            self.dy = -11
+            self.dy = -10
             self.status = "in air"
 
 class Point:
@@ -207,15 +207,80 @@ class Terrain:
     
     def __repr__(self) -> str:
         return "".join([f"{p}->" for p in self.point_list])[:-2]
+    
+class SpecialTerrain(Terrain):
+    def __init__(self, point_list, property):
+        super().__init__(point_list)
+        self.property = property
+        self.stepCounter = 0
+        self.spriteCounter = 0
+        
+        flatpath = f'TP/pics/{self.property}.gif'
+        sloppath = f'TP/pics/{self.property}_slop.gif'
 
+        self.flatList = []
+        myGif = Image.open(flatpath)
+        for frame in range(myGif.n_frames):  #For every frame index...
+            #Seek to the frame, convert it, add it to our sprite list
+            myGif.seek(frame)
+            fr = myGif.resize((20, 20))
+            fr = CMUImage(fr)
+            self.flatList.append(fr)
+        ##Fix for broken transparency on frame 0
+        self.flatList.pop(0)
+        
+        self.width = myGif.size[0]//1
+        self.height = myGif.size[1]//1
+        
+        slopGif = Image.open(sloppath)
+        self.leftslopList = []
+        self.rightslopList = []
+        for frame in range(slopGif.n_frames):  #For every frame index...
+            #Seek to the frame, convert it, add it to our sprite list
+            slopGif.seek(frame)
+            fr = slopGif.resize((20, 20))
+            fr_flip = fr.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            fr = CMUImage(fr)
+            fr_flip = CMUImage(fr_flip)
+            self.rightslopList.append(fr_flip)
+            self.leftslopList.append(fr)
+        ##Fix for broken transparency on frame 0
+        self.leftslopList.pop(0)
+        self.rightslopList.pop(0)
+        
+
+    def draw(self):
+        #draw pool with two slops on the side
+        #draw left slop
+        drawImage(self.leftslopList[self.spriteCounter], 
+                    self.point_list[0].x, self.point_list[0].y+8, align = 'center')
+        #draw right slop
+        drawImage(self.rightslopList[self.spriteCounter], 
+                    self.point_list[1].x,self.point_list[0].y+8, align = 'center')
+        for pos in range(self.point_list[0].x+20,self.point_list[1].x,20):
+            drawImage(self.flatList[self.spriteCounter], 
+                    pos,self.point_list[0].y+8, align = 'center')
+    
+    def doStep(self):
+        if self.stepCounter >= 1000:
+            self.stepCounter = 0
+        self.stepCounter += 1
+        if self.stepCounter >= 10: #Update the animate every 10th call
+            self.spriteCounter = (self.spriteCounter + 1) % len(self.flatList)
+            self.stepCounter = 0
+            
 #-------------------------------------------------------------------
 def onAppStart(app):
+    reset(app)
+    
+def reset(app):
+    app.gameover = False
     app.stepsPerSecond = 30         #Adjust the onStep frequency
     app.bg = Image.open("TP/pics/bg.jpg")
     app.bg = app.bg.resize((app.width,app.height))
     app.bg = CMUImage(app.bg)
-    app.fireboy = Character('fireboy','fire',300,300,5,5,8,5,10000)
-    app.watergirl = Character('watergirl','water',400,600,5,5,9,9,12)
+    app.fireboy = Character('fireboy','fire',200,400,5,5,8,5,10000)
+    app.watergirl = Character('watergirl','water',250,600,5,5,9,9,12)
     loadTerrainPieces(app)
     
 def loadTerrainPieces(app):
@@ -229,46 +294,57 @@ def loadTerrainPieces(app):
     testslop1 = Terrain( [(30,570), (30,670), (130,670)])
     testslop2 = Terrain([(1120,570), (1020,670), (1120,670)])
     #add more terrins, hard code for three layers
-    terrain1 = Terrain([(0,500), (0,525), (600,525), (650,475), 
-                        (800,475), (800,450), (650,450), (600,500)])
+    terrain1 = Terrain([(0,500), (0,525), (610,525), (660,465), 
+                        (800,465), (825,440), (650,440), (600,500)])
     terrain2 = Terrain([(900,500), (1150,500), (1150,475), (925,475)])
-    #terrain3 = Terrain([])
+    terrain3 = Terrain([(100,425),(125,425),(200,350),(675,350),(725,300),(1150,300),
+                        (1150,275),(725,275),(675,325),(200,325)])
     terrain4 = Terrain([(0,175), (475,175), (475,150), (50,150), (0,100)])
     terrain5 = Terrain([(650,175), (1150,175), (1150,100), (1100,150), (650,150)])
-    terrain6 = Terrain([(675,600), (850,600), (825,575), (700,575)])
+    terrain6 = Terrain([(675,600), (925,600), (900,575), (700,575)])
+
     app.terrainList = [ bottomwall, leftwall, rightwall, topwall,
                         testslop1, testslop2,
-                        terrain1,terrain2,terrain4,terrain5,terrain6]
-
+                        terrain1,terrain2,terrain3,terrain4,terrain5,terrain6]
+    #fire and water pool
+    fire1= SpecialTerrain([(300,app.height-30),(375,app.height-30)],'fire')
+    fire2= SpecialTerrain([(200,500),(460,500)],'fire')
+    water1= SpecialTerrain([(450,app.height-30),(525,app.height-30)],'water')
+    water2= SpecialTerrain([(325,325),(565,325)],'water')
+    
+    app.specialterrainList =[fire1,fire2,water1,water2]
+    
 def onKeyHold(app, keys):
-    #hold key to control horizontal move
-    if 'd' in keys:
-        app.fireboy.dx = 4
-        app.fireboy.facedirection = 'right'
-    elif 'a' in keys:
-        app.fireboy.dx = -4
-        app.fireboy.facedirection = 'left'
+    if not app.gameover:
+        #hold key to control horizontal move
+        if 'd' in keys:
+            app.fireboy.dx = 5
+            app.fireboy.facedirection = 'right'
+        elif 'a' in keys:
+            app.fireboy.dx = -5
+            app.fireboy.facedirection = 'left'
 
-    elif 'right' in keys:
-        app.watergirl.dx = 4
-        app.watergirl.facedirection = 'right'
-    elif 'left' in keys:
-        app.watergirl.dx = -4
-        app.watergirl.facedirection = 'left'
+        elif 'right' in keys:
+            app.watergirl.dx = 5
+            app.watergirl.facedirection = 'right'
+        elif 'left' in keys:
+            app.watergirl.dx = -5
+            app.watergirl.facedirection = 'left'
 
 def onKeyRelease(app, keys):
-    if 'd' in keys:
-        app.fireboy.dx = 0
-        app.fireboy.facedirection = 'middle'
-    if 'a' in keys:
-        app.fireboy.dx = 0
-        app.fireboy.facedirection = 'middle'
-    if 'right' in keys:
-        app.watergirl.dx = 0
-        app.watergirl.facedirection = 'middle'
-    if 'left' in keys:
-        app.watergirl.dx = 0
-        app.watergirl.facedirection = 'middle'
+    if not app.gameover:
+        if 'd' in keys:
+            app.fireboy.dx = 0
+            app.fireboy.facedirection = 'middle'
+        if 'a' in keys:
+            app.fireboy.dx = 0
+            app.fireboy.facedirection = 'middle'
+        if 'right' in keys:
+            app.watergirl.dx = 0
+            app.watergirl.facedirection = 'middle'
+        if 'left' in keys:
+            app.watergirl.dx = 0
+            app.watergirl.facedirection = 'middle'
 
 def onKeyPress(app, key):
     #Jump kirb!
@@ -277,9 +353,13 @@ def onKeyPress(app, key):
         
     if key == 'up':
         app.watergirl.jump()
+        
+    if key == 'r':
+        reset(app)
 
 def cross_product(a,b,p):
-    """judge whether the point p is on the outside of line [a,b] of the geo 
+    """
+    judge whether the point p is on the outside of line [a,b] of the geo 
     shape with cross_product
     The line of a shape goes in anti-clockwise direct, if point p lies outside 
     of geo shape, ap x ab < 0
@@ -369,20 +449,42 @@ def onLine(app, character:Character):
         return "in air"
     return status
 
+def onPool(app, character):
+    for sp_terrain in app.specialterrainList:
+        # if the terrain property does no match char property
+        if sp_terrain.property != character.property:
+            #cheack each line if collide
+            for line in sp_terrain.line_list:
+                collide_status = collide(line, character)
+                if collide_status != None:
+                    return 'died'
+    return 'safe'
+    
 def updateStatus(app, character:Character):
     status = onLine(app, character) #return a set of current status
     #print(f'current status is {status}, {character.cur_position(9)}')
+    if 'on floor' in status:
+        #check if the character has come across waterpool or firepool
+        if onPool(app, character) == 'died':
+            character.die = True
 
 
 def onStep(app):
-    #Update fireboy status
-    updateStatus(app, app.fireboy)
-    updateStatus(app, app.watergirl)
-    
-    #Update the fireboy
-    app.fireboy.doStep()
-    app.watergirl.doStep()
-
+    if not app.gameover:
+        #Update fireboy status
+        updateStatus(app, app.fireboy)
+        updateStatus(app, app.watergirl)
+        
+        #update fire and  water pool
+        for sp_terrain in app.specialterrainList: 
+            sp_terrain.doStep()
+        
+        #Update the fireboy
+        app.fireboy.doStep()
+        app.watergirl.doStep()
+        
+        if app.fireboy.die or app.watergirl.die:
+            app.gameover = True
     
 def redrawAll(app):
     #Background
@@ -390,9 +492,16 @@ def redrawAll(app):
     #draw Terrain
     for terrain in app.terrainList:
         drawPolygon(*terrain.drawing_point_output, fill='black',opacity=100)
-    #draw character
+    #draw special terrain
+    for sp_terrain in app.specialterrainList:
+        sp_terrain.draw()
+    #draw character 
     app.fireboy.draw()
     app.watergirl.draw()
+    
+    if app.gameover:
+        drawRect(575,350,600,300,align='center',fill='salmon',border='yellow',borderWidth=2)
+        drawLabel("You died! Please press r to restart", 575,350, size=30, font='sacramento') #font can not be shown correctly
     
 def main():
     runApp(width=1150, height=700)
