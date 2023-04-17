@@ -1,8 +1,10 @@
 #----------------------------------------
-#    Fireboy and watergirl starter demo v.2.0
-#    4/16/2023
+#    Fireboy and watergirl starter demo v.1.0
+#    4/12/2023
 #    ID: zhiweny
-#    figures are collected from https://www.4399.com/ 'watergirl & fireboy in forest 5'
+#    figures are collected from: 
+#    https://www.4399.com/   'watergirl & fireboy in forest 5'
+#    https://github.com/Hakimos7777/Fireboy_and_watergirl_game
 #----------------------------------------
 
 import os
@@ -30,6 +32,7 @@ class Character:
         self.ddy = 0
         self._status = "in air"
         self.die = False
+        self.diamond = 0
         
         #condition on current direction
         right_filepath = f'TP/pics/{self.name}_right.gif'
@@ -199,7 +202,7 @@ class Terrain:
         for point_idx in range(len(self.point_list)):
             # connect the last point to the first to clost the geo shape
             cur_point = self.point_list[point_idx]
-            next_point = self.point_list[point_idx+1 if point_idx<len(self.point_list)-1 else 0]
+            next_point = self.point_list[point_idx+1 if (point_idx<len(self.point_list)-1) else 0]
             
             self.line_list.append(Line(cur_point,next_point))
 
@@ -257,6 +260,47 @@ class SpecialTerrain(Terrain):
         if self.stepCounter >= 10: #Update the animate every 10th call
             self.spriteCounter = (self.spriteCounter + 1) % len(self.flatList)
             self.stepCounter = 0
+
+class Diamond(Terrain):
+    def __init__(self, point_list, property):
+        super().__init__(point_list)
+        self.property = property
+        self.isfound = False
+        self.x = (self.point_list[0].x + self.point_list[2].x)//2
+        self.y = (self.point_list[0].y + self.point_list[1].y)//2
+        self.diamonds = Image.open(f'TP/pics/{self.property}Diamond.png')
+        self.diamonds = self.diamonds.resize((65, 65))
+        self.diamonds = CMUImage(self.diamonds)
+        
+    def draw(self):
+        if not self.isfound:
+            drawImage(self.diamonds, 
+                    self.x, self.y, align = 'center')
+
+class Door(SpecialTerrain):
+    def __init__(self, point_list, property):
+        super().__init__(point_list,property)
+        self.x = (self.point_list[0].x + self.point_list[2].x)//2
+        self.y = (self.point_list[0].y + self.point_list[1].y)//2
+        self.isfound = False
+        #read in git
+        doorpath = f'TP/pics/{self.property}door.gif'
+        self.doorList = self.getGif(doorpath, False, 65, 135)
+        #read in png
+        self.door = Image.open(f'TP/pics/{self.property}door.png')
+        self.door = self.door.resize((65, 75))
+        self.door = CMUImage(self.door)
+               
+    def draw(self):
+        if not self.isfound:
+            drawImage(self.door, 
+                        self.x, self.y, align = 'center')
+        elif self.isfound:
+            drawImage(self.doorList[self.spriteCounter], 
+                        self.x, self.y-25, align = 'center')
+            
+    def doStep(self):
+        super().doStep()
             
 #-------------------------------------------------------------------
 def onAppStart(app):
@@ -268,11 +312,11 @@ def reset(app):
     app.bg = Image.open("TP/pics/bg.jpg")
     app.bg = app.bg.resize((app.width,app.height))
     app.bg = CMUImage(app.bg)
-    app.fireboy = Character('fireboy','fire',200,400,5,5,8,5,10000)
-    app.watergirl = Character('watergirl','water',250,600,5,5,9,9,12)
-    loadTerrainPieces(app)
+    app.fireboy = Character('fireboy','fire',200,100,5,5,8,5,10000)
+    app.watergirl = Character('watergirl','water',720,620,5,5,9,9,12)
+    loadGameBoard(app)
     
-def loadTerrainPieces(app):
+def loadGameBoard(app):
     # "standard" Terrains 
     bottomwall = Terrain([(0,app.height-30), (0,app.height), 
                           (app.width,app.height), (app.width,app.height-30)])
@@ -291,10 +335,10 @@ def loadTerrainPieces(app):
     terrain4 = Terrain([(0,175), (475,175), (475,150), (50,150), (0,100)])
     terrain5 = Terrain([(650,175), (1150,175), (1150,100), (1100,150), (650,150)])
     terrain6 = Terrain([(675,600), (925,600), (900,575), (700,575)])
-
     app.terrainList = [ bottomwall, leftwall, rightwall, topwall,
                         testslop1, testslop2,
                         terrain1,terrain2,terrain3,terrain4,terrain5,terrain6]
+    
     #fire and water pool
     fire1= SpecialTerrain([(300,app.height-30),(375,app.height-30)],'fire')
     fire2= SpecialTerrain([(200,500),(460,500)],'fire')
@@ -302,6 +346,21 @@ def loadTerrainPieces(app):
     water1= SpecialTerrain([(450,app.height-30),(525,app.height-30)],'water')
     water2= SpecialTerrain([(325,325),(565,325)],'water')
     app.specialterrainList =[fire1,fire2,fire3,water1,water2]
+    
+    #diamonds
+    firediamond1 = Diamond([(1000,425),(1000,465),(1040,465),(1040,425)],'fire')
+    firediamond2 = Diamond([(400,275),(400,315),(440,315),(440,275)],'fire')
+    firediamond3 = Diamond([(990,100),(990,140),(1030,140),(1030,100)],'fire')
+    waterdiamond1 = Diamond([(780,530),(780,570),(820,570),(820,530)],'water')
+    waterdiamond2 = Diamond([(220,450),(220,490),(260,490),(260,450)],'water')
+    waterdiamond3 = Diamond([(120,100),(120,140),(160,140),(150,100)],'water')
+    app.diamondList=[firediamond1,firediamond2,firediamond3,
+                     waterdiamond1,waterdiamond2,waterdiamond3]
+    
+    #door
+    waterdoor = Door([(300,85),(300,150),(350,150),(350,85)],'fire')
+    firedoor = Door([(800,85),(800,150),(850,150),(850,85)],'water')
+    app.doorList = [waterdoor,firedoor]
     
 def onKeyHold(app, keys):
     if not app.gameover:
@@ -378,14 +437,14 @@ def collide(line:Line, character:Character): # should be modified later
         if cur_status>=0 and next_status<0: 
             
             if line.direct=="vertical":
-                if y_start <= character.y and character.y <= y_end:
+                if y_start <= character.y and character.y <= y_end: #within range
                     if pos_idx in [4,6]:
                         character.dx = 0
                         character.set_position(line.x+(5-pos_idx), None, pos_idx)
                         return 'wall'
                     
             elif line.direct=="horizon":
-                if x_start <= character.x and character.x <= x_end:
+                if x_start <= character.x and character.x <= x_end: #within range
                     # middle bottom point collides with the floor
                     if pos_idx in [8]:
                         character.dy = 0
@@ -410,7 +469,7 @@ def collide(line:Line, character:Character): # should be modified later
                     
         elif cur_status == 0: # already on the line
             if line.direct == "horizon":
-                if x_start <= character.x and character.x <= x_end:
+                if x_start <= character.x and character.x <= x_end: #within range
                     if pos_idx in [7,8,9]:
                         if character.status!="on floor":
                             character.set_position(None, line.y, pos_idx)
@@ -427,12 +486,29 @@ def collide(line:Line, character:Character): # should be modified later
 
 def onLine(app, character:Character): 
     status = set()
+    #check if collide with static terrin
     for terrain in app.terrainList:
         #cheack each line if collide
         for line in terrain.line_list:
             collide_status = collide(line,character)
             if collide_status != None:
                 status.add(collide_status)
+    #check if collide with diamonds
+    for diamond in app.diamondList:
+        for diamondline in diamond.line_list:
+            if not diamond.isfound:
+                if diamond.property == character.property:
+                    if collide(diamondline,character) != None:
+                        diamond.isfound = True
+                        character.diamond += 1
+    #check if collide with diamonds
+    for door in app.doorList:
+        for doorline in door.line_list:
+            if not door.isfound:
+                if door.property == character.property:
+                    if collide(doorline,character) != None:
+                        door.isfound = True
+                    
     if len(status)==0:
         character.status = "in air"
         return "in air"
@@ -464,9 +540,14 @@ def onStep(app):
         updateStatus(app, app.fireboy)
         updateStatus(app, app.watergirl)
         
-        #update fire and  water pool
+        #update fire and water pool
         for sp_terrain in app.specialterrainList: 
             sp_terrain.doStep()
+            
+        #update door if its been found
+        for door in app.doorList:
+            if door.isfound:
+                door.doStep()
         
         #Update the fireboy
         app.fireboy.doStep()
@@ -484,6 +565,16 @@ def redrawAll(app):
     #draw special terrain
     for sp_terrain in app.specialterrainList:
         sp_terrain.draw()
+    #draw diamonds:
+    for dia in app.diamondList:
+        dia.draw()
+    #draw doors
+    for door in app.doorList:
+        door.draw()
+    drawCircle(300,85,4)
+    drawCircle(300,150,4)
+    drawCircle(350,150,4)
+    drawCircle(350,85,4)
     #draw character 
     app.fireboy.draw()
     app.watergirl.draw()
