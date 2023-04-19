@@ -157,7 +157,20 @@ class Character:
         if self.status != "in air":
             self.dy = -10
             self.status = "in air"
+class Air:
+    def __init__(self, app):
+        self.x = random.randrange(480,640)
+        self.y1 = random.randrange(280,310)
+        self.length = random.randrange(30,45)
+        self.y2 = self.y1 - self.length
+        self.dy = -random.randrange(2, 3)
 
+    def doStep(self):
+        self.y1 += self.dy
+        self.y2 += self.dy
+
+    def draw(self):
+        drawLine(self.x, self.y2, self.x, self.y1, fill = 'white', opacity = 75, arrowStart=True)
 class Point:
     def __init__(self,x:int,y:int):
         self.x = x
@@ -313,7 +326,9 @@ def reset(app):
     app.bg = app.bg.resize((app.width,app.height))
     app.bg = CMUImage(app.bg)
     app.fireboy = Character('fireboy','fire',200,100,5,5,8,5,10000)
-    app.watergirl = Character('watergirl','water',720,620,5,5,9,9,12)
+    app.watergirl = Character('watergirl','water',720,250,5,5,9,9,12)
+    app.airs = []                   #Make an empty orb list
+    app.lastAirTime = time.time()   #Set an initial orb timer
     loadGameBoard(app)
     
 def loadGameBoard(app):
@@ -335,9 +350,10 @@ def loadGameBoard(app):
     terrain4 = Terrain([(0,175), (475,175), (475,150), (50,150), (0,100)])
     terrain5 = Terrain([(650,175), (1150,175), (1150,100), (1100,150), (650,150)])
     terrain6 = Terrain([(675,600), (925,600), (900,575), (700,575)])
+    terrain7 = Terrain([(520,200),(520,225),(600,225),(600,200)])
     app.terrainList = [ bottomwall, leftwall, rightwall, topwall,
                         testslop1, testslop2,
-                        terrain1,terrain2,terrain3,terrain4,terrain5,terrain6]
+                        terrain1,terrain2,terrain3,terrain4,terrain5,terrain6,terrain7]
     
     #fire and water pool
     fire1= SpecialTerrain([(300,app.height-30),(375,app.height-30)],'fire')
@@ -428,14 +444,14 @@ def collide(line:Line, character:Character): # should be modified later
         if (x_start-1 >= cur_anchor_point.x or cur_anchor_point.x >= x_end+1)\
             and (y_start-1 >= cur_anchor_point.y or cur_anchor_point.y >= y_end+1):
             continue
-
+        
         next_anchor_point = character.next_position(pos_idx) # in the next frame, temporal "next", not spacial "next"
         cur_status = cross_product(line.p1,line.p2,cur_anchor_point)
         next_status = cross_product(line.p1,line.p2,next_anchor_point)
-
+        
         # it will collide in the next frame, avoid it
+        
         if cur_status>=0 and next_status<0: 
-            
             if line.direct=="vertical":
                 if y_start <= character.y and character.y <= y_end: #within range
                     if pos_idx in [4,6]:
@@ -456,6 +472,7 @@ def collide(line:Line, character:Character): # should be modified later
                     elif pos_idx in [2]: 
                         character.dy = 0
                         character.set_position(None, line.y, pos_idx)
+                        print('hit ceil')
                         return 'hit ceil'
         
             elif "slop" in line.direct:
@@ -503,11 +520,15 @@ def onLine(app, character:Character):
                         character.diamond += 1
     #check if collide with diamonds
     for door in app.doorList:
-        for doorline in door.line_list:
-            if not door.isfound:
-                if door.property == character.property:
+        if door.property == character.property:
+            for doorline in door.line_list:
+                #if character havent reach the door, check collision
+                if not door.isfound:
                     if collide(doorline,character) != None:
                         door.isfound = True
+                #if character leaves or far away, door close regradless of door status
+                if (door.x-45)>=character.x or (door.x+45)<=character.x:
+                    door.isfound = False
                     
     if len(status)==0:
         character.status = "in air"
@@ -526,10 +547,15 @@ def onPool(app, character):
     return 'safe'
     
 def updateStatus(app, character:Character):
+    #if in up air! before checking each line collision
+    if 475<=character.x and character.x<=650:
+        if 0<= character.y and character.y<=300:
+            character.dy = -2
+
     status = onLine(app, character) #return a set of current status
     #print(f'current status is {status}, {character.cur_position(9)}')
+    #check if the character has come across waterpool or firepool
     if 'on floor' in status:
-        #check if the character has come across waterpool or firepool
         if onPool(app, character) == 'died':
             character.die = True
 
@@ -548,7 +574,18 @@ def onStep(app):
         for door in app.doorList:
             if door.isfound:
                 door.doStep()
-        
+        #update air bubbles
+        #Update the orbs
+        for air in app.airs:
+            air.doStep()
+
+        #Add another orb each second
+        if (time.time() - app.lastAirTime > 1):
+            app.airs.append(Air(app))
+            app.lastAirTime = time.time()
+            if len(app.airs) >= 20:
+                app.airs = app.airs[-10:]
+                
         #Update the fireboy
         app.fireboy.doStep()
         app.watergirl.doStep()
@@ -575,6 +612,9 @@ def redrawAll(app):
     drawCircle(300,150,4)
     drawCircle(350,150,4)
     drawCircle(350,85,4)
+    #draw up level air
+    for air in app.airs:
+        air.draw()
     #draw character 
     app.fireboy.draw()
     app.watergirl.draw()
