@@ -233,6 +233,10 @@ class SpecialTerrain(Terrain):
         self.property = property
         self.stepCounter = 0
         self.spriteCounter = 0
+        self.loadImage()
+        self.ischanged = False
+        
+    def loadImage(self):
         flatpath = f'TP/pics/{self.property}.gif'
         sloppath = f'TP/pics/{self.property}_slop.gif'
         self.flatList = self.getGif(flatpath, False, 20, 20)
@@ -257,6 +261,9 @@ class SpecialTerrain(Terrain):
         
 
     def draw(self):
+        if self.ischanged:
+            self.loadImage()
+            self.ischanged = False
         #draw pool with two slops on the side
         #draw left slop
         drawImage(self.leftslopList[self.spriteCounter], 
@@ -264,6 +271,7 @@ class SpecialTerrain(Terrain):
         #draw right slop
         drawImage(self.rightslopList[self.spriteCounter], 
                     self.point_list[1].x,self.point_list[0].y+8, align = 'center')
+        #draw flat
         for pos in range(self.point_list[0].x+20,self.point_list[1].x,20):
             drawImage(self.flatList[self.spriteCounter], 
                     pos,self.point_list[0].y+8, align = 'center')
@@ -352,12 +360,13 @@ def onAppStart(app):
     
 def reset(app):
     app.gameover = False
+    app.gamewin = False
     app.stepsPerSecond = 30         #Adjust the onStep frequency
     app.bg = Image.open("TP/pics/bg.jpg")
     app.bg = app.bg.resize((app.width,app.height))
     app.bg = CMUImage(app.bg)
-    app.fireboy = Character('fireboy','fire',200,100,5,5,8,5,10000)
-    app.watergirl = Character('watergirl','water',720,250,5,5,9,9,12)
+    app.fireboy = Character('fireboy','fire',200,600,5,5,8,5,10000)
+    app.watergirl = Character('watergirl','water',250,600,5,5,9,9,12)
     app.airs = []                   #Make an empty orb list
     app.lastAirTime = time.time()   #Set an initial orb timer
     loadGameBoard(app)
@@ -389,10 +398,10 @@ def loadGameBoard(app):
     #fire and water pool
     fire1= SpecialTerrain([(300,app.height-30),(375,app.height-30)],'fire')
     fire2= SpecialTerrain([(200,500),(460,500)],'fire')
-    fire3= SpecialTerrain([(200,500),(460,500)],'fire')
+    #fire3= SpecialTerrain([(200,500),(460,500)],'fire')
     water1= SpecialTerrain([(450,app.height-30),(525,app.height-30)],'water')
     water2= SpecialTerrain([(325,325),(565,325)],'water')
-    app.specialterrainList =[fire1,fire2,fire3,water1,water2]
+    app.specialterrainList =[fire1,fire2,water1,water2]
     
     #diamonds
     firediamond1 = Diamond([(1000,425),(1000,465),(1040,465),(1040,425)],'fire')
@@ -400,7 +409,7 @@ def loadGameBoard(app):
     firediamond3 = Diamond([(990,100),(990,140),(1030,140),(1030,100)],'fire')
     waterdiamond1 = Diamond([(780,530),(780,570),(820,570),(820,530)],'water')
     waterdiamond2 = Diamond([(220,450),(220,490),(260,490),(260,450)],'water')
-    waterdiamond3 = Diamond([(120,100),(120,140),(160,140),(150,100)],'water')
+    waterdiamond3 = Diamond([(120,100),(120,140),(160,140),(160,100)],'water')
     app.diamondList=[firediamond1,firediamond2,firediamond3,
                      waterdiamond1,waterdiamond2,waterdiamond3]
     
@@ -410,10 +419,11 @@ def loadGameBoard(app):
     app.doorList = [waterdoor,firedoor]
     
     #bottom
-    botton1 = Button([(105,450),(105,535),(145,535),(145,450)],'water') #500+35-85
-    botton2 = Button([(600,275),(600,360),(640,360),(640,275)],'fire') #325+35
-    botton3 = Button([(900,225),(900,310),(950,310),(950,225)],'fire') #275
-    app.buttonList = [botton1,botton2,botton3]
+    botton1 = Button([(105,450),(105,535),(145,535),(145,450)],'fire') #500+35-85
+    botton2 = Button([(600,275),(600,360),(640,360),(640,275)],'water') #325+35
+    botton3 = Button([(900,225),(900,310),(940,310),(940,225)],'fire') #275
+    botton4 = Button([(700,100),(700,185),(740,185),(740,100)],'water') #150+35-85
+    app.buttonList = [botton1,botton2,botton3,botton4]
     
     
 def onKeyHold(app, keys):
@@ -597,9 +607,10 @@ def onPool(app, character):
     
 def updateStatus(app, character:Character):
     #if in up air! before checking each line collision
-    if 475<=character.x and character.x<=650:
-        if 0<= character.y and character.y<=300:
-            character.dy = -2
+    if app.buttonList[2].isfound or app.buttonList[3].isfound:
+        if 475<=character.x and character.x<=650:
+            if 0<= character.y and character.y<=300:
+                character.dy = -2
 
     status = onLine(app, character) #return a set of current status
     #print(f'current status is {status}, {character.cur_position(9)}')
@@ -617,13 +628,23 @@ def onStep(app):
         updateStatus(app, app.watergirl)
         
         #update fire and water pool
+        if app.buttonList[0].isfound:
+            app.specialterrainList[1].property = 'water'
+            app.specialterrainList[1].ischanged = True
+        if app.buttonList[1].isfound:
+            app.specialterrainList[3].property = 'fire'
+            app.specialterrainList[3].ischanged = True
         for sp_terrain in app.specialterrainList: 
             sp_terrain.doStep()
-
+                
         #update door if its been found
+        doorcount = 0
         for door in app.doorList:
             if door.isfound:
+                doorcount += 1
                 door.doStep()
+        if doorcount == len(app.doorList):
+            app.gamewin = True
                 
         #update air bubbles
         for air in app.airs:
@@ -642,6 +663,7 @@ def onStep(app):
         
         if app.fireboy.die or app.watergirl.die:
             app.gameover = True
+            
     
 def redrawAll(app):
     #Background
@@ -662,8 +684,9 @@ def redrawAll(app):
     for door in app.doorList:
         door.draw()
     #draw up level air
-    for air in app.airs:
-        air.draw()
+    if app.buttonList[2].isfound or app.buttonList[3].isfound:
+        for air in app.airs:
+            air.draw()
     #draw character 
     app.fireboy.draw()
     app.watergirl.draw()
@@ -671,7 +694,15 @@ def redrawAll(app):
     if app.gameover:
         drawRect(575,350,600,300,align='center',fill='salmon',border='yellow',borderWidth=2)
         drawLabel("You died! Please press r to restart", 575,350, size=30, font='sacramento') #font can not be shown correctly
-    
+    if app.gamewin:
+        drawRect(575,350,600,300,align='center',fill='salmon',border='yellow',borderWidth=2)
+        drawLabel(f"Good job, you win!!", 
+                  575,275, size=35, font='sacramento')
+        drawLabel(f"watergirl score is {app.watergirl.diamond}/3", 
+                  575,325, size=30, font='sacramento')
+        drawLabel(f"fireboy score is {app.fireboy.diamond}/3", 
+                  575,375, size=30, font='sacramento')
+        
 def main():
     runApp(width=1150, height=700)
 
