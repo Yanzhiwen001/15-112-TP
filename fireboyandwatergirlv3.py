@@ -171,6 +171,8 @@ class Air:
 
     def draw(self):
         drawLine(self.x, self.y2, self.x, self.y1, fill = 'white', opacity = 75, arrowStart=True)
+        
+        
 class Point:
     def __init__(self,x:int,y:int):
         self.x = x
@@ -314,7 +316,36 @@ class Door(SpecialTerrain):
             
     def doStep(self):
         super().doStep()
-            
+
+class Button(SpecialTerrain):
+    def __init__(self, point_list, property):
+        super().__init__(point_list,property)
+        self.x = (self.point_list[0].x + self.point_list[2].x)//2
+        self.y = (self.point_list[0].y + self.point_list[1].y)//2
+        self.isfound = False
+        self.property = property
+        #read in png
+        self.button = Image.open(f'TP/pics/button.png')
+        self.button = self.button.resize((40, 15))
+        self.button = CMUImage(self.button)
+
+    
+    def draw(self):
+        if self.isfound == False: #if not found, draw png
+            if self.property == 'fire':
+                drawRect(self.x-8.5, self.y-13, 15, 10, fill='crimson')
+                drawImage(self.button, 
+                        self.x, self.y, align = 'center')
+            else:
+                drawRect(self.x-8.5, self.y-13, 15, 10, fill='deepSkyBlue')
+                drawImage(self.button, 
+                        self.x, self.y, align = 'center')
+                
+        elif self.isfound == True: #if not found, draw png down place
+            drawImage(self.button, 
+                        self.x, self.y+10, align = 'center')
+        
+        
 #-------------------------------------------------------------------
 def onAppStart(app):
     reset(app)
@@ -377,6 +408,13 @@ def loadGameBoard(app):
     waterdoor = Door([(300,85),(300,150),(350,150),(350,85)],'fire')
     firedoor = Door([(800,85),(800,150),(850,150),(850,85)],'water')
     app.doorList = [waterdoor,firedoor]
+    
+    #bottom
+    botton1 = Button([(105,450),(105,535),(145,535),(145,450)],'water') #500+35-85
+    botton2 = Button([(600,275),(600,360),(640,360),(640,275)],'fire') #325+35
+    botton3 = Button([(900,225),(900,310),(950,310),(950,225)],'fire') #275
+    app.buttonList = [botton1,botton2,botton3]
+    
     
 def onKeyHold(app, keys):
     if not app.gameover:
@@ -518,7 +556,7 @@ def onLine(app, character:Character):
                     if collide(diamondline,character) != None:
                         diamond.isfound = True
                         character.diamond += 1
-    #check if collide with diamonds
+    #check if collide with exit door
     for door in app.doorList:
         if door.property == character.property:
             for doorline in door.line_list:
@@ -529,6 +567,17 @@ def onLine(app, character:Character):
                 #if character leaves or far away, door close regradless of door status
                 if (door.x-45)>=character.x or (door.x+45)<=character.x:
                     door.isfound = False
+    #check if collide with button
+    for bu in app.buttonList:
+        if bu.property == character.property:
+            for buline in bu.line_list:
+                #if character havent reach the door, check collision
+                if not bu.isfound:
+                    if collide(buline,character) != None:
+                        bu.isfound = True
+                #if character leaves or far away, door close regradless of door status
+                if (bu.x-42)>=character.x or (bu.x+42)<=character.x:
+                    bu.isfound = False
                     
     if len(status)==0:
         character.status = "in air"
@@ -562,20 +611,21 @@ def updateStatus(app, character:Character):
 
 def onStep(app):
     if not app.gameover:
-        #Update fireboy status
+        #Update fireboy status 
+        #Update all terrain, special terrain, diamond, door, button status
         updateStatus(app, app.fireboy)
         updateStatus(app, app.watergirl)
         
         #update fire and water pool
         for sp_terrain in app.specialterrainList: 
             sp_terrain.doStep()
-            
+
         #update door if its been found
         for door in app.doorList:
             if door.isfound:
                 door.doStep()
+                
         #update air bubbles
-        #Update the orbs
         for air in app.airs:
             air.doStep()
 
@@ -596,6 +646,9 @@ def onStep(app):
 def redrawAll(app):
     #Background
     drawImage(app.bg, 0, 0)
+    #draw botton
+    for bu in app.buttonList:
+        bu.draw()
     #draw Terrain
     for terrain in app.terrainList:
         drawPolygon(*terrain.drawing_point_output, fill='black',opacity=100)
@@ -608,10 +661,6 @@ def redrawAll(app):
     #draw doors
     for door in app.doorList:
         door.draw()
-    drawCircle(300,85,4)
-    drawCircle(300,150,4)
-    drawCircle(350,150,4)
-    drawCircle(350,85,4)
     #draw up level air
     for air in app.airs:
         air.draw()
