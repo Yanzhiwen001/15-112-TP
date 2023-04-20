@@ -384,15 +384,17 @@ class SelectionButton:
         
 #-------------------------------------------------------------------
 def onAppStart(app):
-    reset(app)
+    reset(app, 'not select')
     
-def reset(app):
+    
+def reset(app, level):
     app.gameover = False
     app.gamewin = False
     app.stepsPerSecond = 30         #Adjust the onStep frequency
     app.airs = []                   #Make an empty orb list
     app.lastAirTime = time.time()   #Set an initial orb timer
-    app.level = 'not select'
+    #app.level = 'not select'
+    app.level = level
     app.myButton = SelectionButton(650, 400, 'hard')
     app.myOtherButton = SelectionButton(500, 400, 'easy')
     #load initial image
@@ -541,7 +543,15 @@ def onKeyPress(app, key):
         app.watergirl.jump()
         
     if key == 'r':
-        reset(app)
+        reset(app, 'not select')
+        
+    if key == 'n':
+        if app.level == 'easy':
+            reset(app, 'easy')
+            loadGameBoardeasy(app) 
+        elif app.level == 'hard':
+            reset(app, 'hard')
+            loadGameBoardhard(app) 
 
 def cross_product(a,b,p):
     """
@@ -751,6 +761,7 @@ def redrawAll(app):
         drawLabel("Welcome to Fireboy & Watergirl!", 575,250, size=30, font='sacramento')
         drawLabel("please choose your level", 575,300, size=20, font='sacramento')
         drawLabel(">>>>>*( >  u  o )<<<<", 575,330, size=20, font='sacramento')
+        drawLabel("ALWAYS: press r to reset all and press n to reload current map", 575,475, size=20, font='sacramento')
         app.myButton.draw()
         app.myOtherButton.draw()
     else:
